@@ -40,28 +40,28 @@ See [Boundaries and MVP](boundaries-and-mvp.md).
 
 ## Architectural principles
 
-1. **Canonical originals**  
+1. **Canonical originals**
    The original document is canonical. Structured data is derived and must retain provenance.
 
-2. **Model-driven behavior**  
+2. **Model-driven behavior**
    The core implements generic concepts. Domain knowledge belongs in versioned YAML models and explicitly registered handlers.
 
-3. **Recognition is not binding**  
+3. **Recognition is not binding**
    Recognition proposes candidate models. Binding records the explicit decision to process a document with an exact model version.
 
-4. **Validation is not publication**  
+4. **Validation is not publication**
    A validated dataset is not automatically queryable. Publication is a separate, explicit state transition.
 
-5. **Append-only history**  
+5. **Append-only history**
    Models, bindings, extraction runs, dataset versions, corrections, validation decisions, and publications preserve history instead of silently rewriting it.
 
-6. **Derived storage is disposable**  
+6. **Derived storage is disposable**
    SQLite is a local query projection and operational index. Durable artifacts must be sufficient to rebuild it.
 
-7. **No arbitrary execution from YAML**  
+7. **No arbitrary execution from YAML**
    YAML cannot directly execute Python, SQL, shell commands, imports, filesystem operations, or network calls.
 
-8. **Local-first privacy**  
+8. **Local-first privacy**
    The architecture must support sensitive documents without implicit uploads or content-rich logs.
 
 ## High-level flow
