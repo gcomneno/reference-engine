@@ -1,0 +1,24 @@
+"""Structured errors exposed by the Reference Engine."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ReferenceEngineError(Exception):
+    """Base class for stable, machine-readable Reference Engine errors."""
+
+    code: str
+    message: str
+    data_path: str | None = None
+    details: Mapping[str, object] | None = None
+
+    def __str__(self) -> str:
+        location = f" at {self.data_path}" if self.data_path is not None else ""
+        return f"{self.code}{location}: {self.message}"
+
+
+class DocumentModelError(ReferenceEngineError):
+    """A document model could not be loaded or validated."""
