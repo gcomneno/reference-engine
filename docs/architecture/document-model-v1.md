@@ -76,6 +76,18 @@ Supported rule types in v1:
 - `sha256`
 - `metadata_equals`
 
+Recognition run outcomes:
+
+- `matched`
+- `not_matched`
+- `ambiguous`
+- `unsupported`
+- `failed`
+
+`unsupported` indicates that the document or required recognition capability
+cannot be evaluated by the current engine. It must not be converted into a
+match or silently treated as a lower score.
+
 Example:
 
 ```yaml
@@ -421,6 +433,39 @@ The base security rules always apply:
 - no implicit network;
 - no personal absolute paths in versioned models;
 - exact model artifact and hash retained for each extraction.
+
+## Standard error codes
+
+The v1 contract uses stable machine-readable error codes.
+
+Model and document errors:
+
+- `MODEL_INVALID`
+- `MODEL_UNSUPPORTED_VERSION`
+- `DOCUMENT_NOT_MATCHED`
+- `DOCUMENT_AMBIGUOUS`
+
+Extraction and handler errors:
+
+- `UNSUPPORTED_EXTRACTION_STRATEGY`
+- `HANDLER_NOT_REGISTERED`
+- `HANDLER_NOT_ALLOWED`
+- `EXTRACTION_FAILED`
+
+Record, provenance, and validation errors:
+
+- `RECORD_SCHEMA_INVALID`
+- `RECORD_RULE_VIOLATION`
+- `PROVENANCE_MISSING`
+- `VALIDATION_REJECTED`
+
+Query failures use stable codes in the `QUERY_*` family for conditions such as
+an unknown query, invalid parameters, absence of a published dataset, no
+matching record, or a cardinality violation.
+
+Errors include a human-readable message and, where applicable, a model data
+path or source location. They must not expose sensitive document values
+unnecessarily.
 
 ## Intermediate extraction envelope
 

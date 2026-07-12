@@ -100,6 +100,7 @@ Run outcomes:
 - `matched`
 - `not_matched`
 - `ambiguous`
+- `unsupported`
 - `failed`
 
 Recognition is a proposal. It does not authorize extraction and does not create a binding by implication.
@@ -233,6 +234,11 @@ Required conditions:
 - model-version compatibility.
 
 Publication does not modify record contents.
+
+Each successful publication appends a `dataset_publications` event linked to
+the durable publication manifest. A rollback appends another event selecting
+an earlier eligible dataset version; it never deletes or rewrites the later
+publication history.
 
 A newly published version supersedes the previous active version for ordinary queries while preserving history.
 

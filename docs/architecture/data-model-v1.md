@@ -129,6 +129,7 @@ Outcomes:
 - `matched`
 - `not_matched`
 - `ambiguous`
+- `unsupported`
 - `failed`
 
 ### `recognition_results`
@@ -259,7 +260,7 @@ Constraints include:
 - unique natural key within a dataset version;
 - unique ordinal within a dataset version.
 
-`data_json` is the complete record already validated against the exact model version. It remains authoritative relative to the typed projection.
+`data_json` is the complete record after structural and declarative validation against the exact model version. This does not imply human approval, publication, or queryability. It remains authoritative relative to the typed projection.
 
 ### `record_field_values`
 
@@ -362,6 +363,40 @@ Severities:
 
 Typical blocking codes include missing required data, duplicate natural keys, missing provenance, incomplete temporal coverage, invalid enum values, and invalid temporal ranges.
 
+## Publication
+
+### `dataset_publications`
+
+Append-only relational projection of durable publication manifests:
+
+- `id`
+- `dataset_id`
+- `dataset_version_id`
+- `sequence_number`
+- `publication_kind`
+- `publication_artifact_id`
+- `supersedes_publication_id`
+- `published_at`
+
+`publication_kind` values:
+
+- `publish`
+- `rollback`
+
+Rules:
+
+- sequence numbers are unique and increasing within one dataset;
+- the selected dataset version must belong to the declared dataset;
+- every row references its durable publication manifest;
+- a rollback appends a new event selecting an earlier eligible version;
+- prior events remain immutable;
+- validation never creates a publication event implicitly;
+- publishing the already active version is an idempotent no-op at the workflow layer.
+
+The latest publication event selects the candidate active version. That version
+is queryable only while its latest validation decision remains `validated` or
+`corrected` and all other publication invariants are satisfied.
+
 ## Queryability views
 
 ### `latest_validation_decisions`
@@ -370,7 +405,7 @@ Returns the latest validation decision for every dataset version.
 
 ### `active_dataset_versions`
 
-Selects the latest explicitly published eligible version for each dataset. A pending newer extraction does not hide the current published version.
+Selects the dataset version targeted by the latest `dataset_publications` event for each dataset, provided that version remains eligible. A pending or rejected newer dataset version does not hide the current published eligible version.
 
 ### `queryable_records`
 
@@ -384,9 +419,12 @@ Ordinary query code must use these views rather than reading arbitrary extracted
 
 ## Publication representation
 
-Publication is an explicit workflow action and durable manifest. The relational projection must be able to determine the selected active dataset version without treating validation alone as publication.
+Publication is an explicit workflow action represented durably by a manifest
+and relationally by `dataset_publications`.
 
-The implementation issue for the initial schema must preserve this invariant. If the final SQL requires a publication table or equivalent explicit relational representation to support the approved views, that representation must remain generic, append-only, and documented before code is accepted. Validation must never implicitly activate a dataset.
+The table is generic and append-only. Its latest event selects the candidate
+active dataset version, while the queryability views also verify the latest
+eligible validation decision. Validation alone never activates a dataset.
 
 ## Indexes
 
