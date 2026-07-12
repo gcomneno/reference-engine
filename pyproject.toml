@@ -8,14 +8,15 @@ version = "0.1.0"
 description = "Model-driven reference document engine"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "jsonschema>=4.23",
+    "PyYAML>=6.0",
+]
 
 [project.optional-dependencies]
 dev = [
-    "jsonschema>=4.23",
     "mypy>=1.10",
     "pytest>=8.0",
-    "PyYAML>=6.0",
     "ruff>=0.5",
     "types-jsonschema>=4.23",
     "types-PyYAML>=6.0",
@@ -40,3 +41,6 @@ files = ["src", "tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"reference_engine.resources" = ["*.json"]

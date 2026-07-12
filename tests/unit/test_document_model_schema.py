@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, cast
 
@@ -52,6 +53,14 @@ def test_schema_is_valid_draft_2020_12() -> None:
 
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     Draft202012Validator.check_schema(schema)
+
+
+def test_packaged_schema_matches_authoritative_schema_byte_for_byte() -> None:
+    packaged_schema = files("reference_engine.resources").joinpath(
+        "document-model-v1.schema.json"
+    )
+
+    assert packaged_schema.read_bytes() == SCHEMA_PATH.read_bytes()
 
 
 @pytest.mark.parametrize(

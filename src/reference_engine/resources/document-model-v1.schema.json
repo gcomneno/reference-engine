@@ -1,0 +1,1856 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://giadaware.local/schemas/document-model-v1.schema.json",
+  "title": "GiadaWare Reference Engine document model v1",
+  "description": "Machine-validatable structural contract for versioned document models.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model",
+    "recognition",
+    "extraction",
+    "records",
+    "provenance",
+    "validation",
+    "queries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "model": {
+      "$ref": "#/$defs/model"
+    },
+    "recognition": {
+      "$ref": "#/$defs/recognition"
+    },
+    "extraction": {
+      "$ref": "#/$defs/extraction"
+    },
+    "document_metadata": {
+      "$ref": "#/$defs/documentMetadata"
+    },
+    "records": {
+      "$ref": "#/$defs/records"
+    },
+    "temporal": {
+      "$ref": "#/$defs/temporal"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "validation": {
+      "$ref": "#/$defs/validation"
+    },
+    "queries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/queryDefinition"
+      }
+    },
+    "indexes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/indexDefinition"
+      }
+    },
+    "security": {
+      "$ref": "#/$defs/security"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "fieldName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "registeredIdentifier": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$"
+    },
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "scalarValue": {
+      "type": [
+        "string",
+        "number",
+        "integer",
+        "boolean",
+        "null"
+      ]
+    },
+    "jsonData": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/scalarValue"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonData"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonData"
+          }
+        }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "title",
+        "document_type",
+        "record_type",
+        "status",
+        "engine_compatibility"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "version": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "document_type": {
+          "$ref": "#/$defs/identifier"
+        },
+        "record_type": {
+          "$ref": "#/$defs/identifier"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "deprecated",
+            "disabled"
+          ]
+        },
+        "engine_compatibility": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "recognitionRule": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "mime_type"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "filename_regex"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "text_contains"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "text_regex"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "sha256"
+            },
+            "value": {
+              "type": "string",
+              "pattern": "^[A-Fa-f0-9]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "page_count_between"
+            },
+            "value": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "minimum",
+                "maximum"
+              ],
+              "properties": {
+                "minimum": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "maximum": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "type",
+            "value",
+            "required",
+            "weight"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0
+            },
+            "type": {
+              "const": "metadata_equals"
+            },
+            "value": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "field",
+                "expected"
+              ],
+              "properties": {
+                "field": {
+                  "$ref": "#/$defs/fieldName"
+                },
+                "expected": {
+                  "$ref": "#/$defs/scalarValue"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "recognition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_score",
+        "rules"
+      ],
+      "properties": {
+        "minimum_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ambiguity_policy": {
+          "enum": [
+            "reject"
+          ]
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/recognitionRule"
+          }
+        }
+      }
+    },
+    "safeOptions": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "python",
+            "sql",
+            "shell",
+            "command",
+            "eval",
+            "script",
+            "code"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/jsonData"
+      }
+    },
+    "extraction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy"
+          ],
+          "properties": {
+            "strategy": {
+              "enum": [
+                "pdf_text_regex",
+                "pdf_table",
+                "csv_rows",
+                "json_records",
+                "manual"
+              ]
+            },
+            "options": {
+              "$ref": "#/$defs/safeOptions"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy",
+            "handler"
+          ],
+          "properties": {
+            "strategy": {
+              "const": "python_handler"
+            },
+            "handler": {
+              "$ref": "#/$defs/registeredIdentifier"
+            },
+            "options": {
+              "$ref": "#/$defs/safeOptions"
+            }
+          }
+        }
+      ]
+    },
+    "normalizationStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "enum": [
+                "trim",
+                "collapse_whitespace",
+                "lowercase",
+                "uppercase",
+                "parse_integer",
+                "parse_decimal"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "old",
+            "new"
+          ],
+          "properties": {
+            "operation": {
+              "const": "replace"
+            },
+            "old": {
+              "type": "string"
+            },
+            "new": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "values"
+          ],
+          "properties": {
+            "operation": {
+              "const": "map"
+            },
+            "values": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "$ref": "#/$defs/scalarValue"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "separator"
+          ],
+          "properties": {
+            "operation": {
+              "const": "split"
+            },
+            "separator": {
+              "type": "string",
+              "minLength": 1
+            },
+            "remove_empty": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation"
+          ],
+          "properties": {
+            "operation": {
+              "enum": [
+                "parse_date",
+                "parse_datetime"
+              ]
+            },
+            "format": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "handler"
+          ],
+          "properties": {
+            "operation": {
+              "const": "custom"
+            },
+            "handler": {
+              "$ref": "#/$defs/registeredIdentifier"
+            }
+          }
+        }
+      ]
+    },
+    "normalizationPipeline": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/normalizationStep"
+      }
+    },
+    "fieldConstraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "pattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "min_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "minProperties": 1
+    },
+    "fieldDeclaration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "string",
+                "integer",
+                "decimal",
+                "boolean",
+                "date",
+                "datetime"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "normalize": {
+              "$ref": "#/$defs/normalizationPipeline"
+            },
+            "constraints": {
+              "$ref": "#/$defs/fieldConstraints"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "values"
+          ],
+          "properties": {
+            "type": {
+              "const": "enum"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/scalarValue"
+              }
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "normalize": {
+              "$ref": "#/$defs/normalizationPipeline"
+            },
+            "constraints": {
+              "$ref": "#/$defs/fieldConstraints"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "items"
+          ],
+          "properties": {
+            "type": {
+              "const": "list"
+            },
+            "items": {
+              "$ref": "#/$defs/itemDeclaration"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "normalize": {
+              "$ref": "#/$defs/normalizationPipeline"
+            },
+            "constraints": {
+              "$ref": "#/$defs/fieldConstraints"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "fields"
+          ],
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "fields": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/fieldName"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/fieldDeclaration"
+              }
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "normalize": {
+              "$ref": "#/$defs/normalizationPipeline"
+            },
+            "constraints": {
+              "$ref": "#/$defs/fieldConstraints"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "itemDeclaration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "string",
+                "integer",
+                "decimal",
+                "boolean",
+                "date",
+                "datetime"
+              ]
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "normalize": {
+              "$ref": "#/$defs/normalizationPipeline"
+            },
+            "constraints": {
+              "$ref": "#/$defs/fieldConstraints"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "values"
+          ],
+          "properties": {
+            "type": {
+              "const": "enum"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/scalarValue"
+              }
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "normalize": {
+              "$ref": "#/$defs/normalizationPipeline"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "fields"
+          ],
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "fields": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/fieldName"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/fieldDeclaration"
+              }
+            },
+            "nullable": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "cardinality",
+        "natural_key",
+        "fields"
+      ],
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/identifier"
+        },
+        "cardinality": {
+          "enum": [
+            "one",
+            "many"
+          ]
+        },
+        "natural_key": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fieldName"
+          }
+        },
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/fieldName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/fieldDeclaration"
+          }
+        }
+      }
+    },
+    "metadataField": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "required"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "string",
+                "integer",
+                "decimal",
+                "boolean",
+                "date",
+                "datetime"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "default": {
+              "$ref": "#/$defs/scalarValue"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "required",
+            "values"
+          ],
+          "properties": {
+            "type": {
+              "const": "enum"
+            },
+            "required": {
+              "type": "boolean"
+            },
+            "nullable": {
+              "type": "boolean"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/scalarValue"
+              }
+            },
+            "default": {
+              "$ref": "#/$defs/scalarValue"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "documentMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/fieldName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/metadataField"
+          }
+        }
+      }
+    },
+    "dateRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date"
+        },
+        "to": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "temporal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timezone",
+        "coverage"
+      ],
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z_+-]+(?:/[A-Za-z0-9_+-]+)+$"
+        },
+        "record_date_field": {
+          "$ref": "#/$defs/fieldName"
+        },
+        "document_validity": {
+          "$ref": "#/$defs/dateRange"
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "none",
+                "point_in_time",
+                "date_range",
+                "complete_date_range"
+              ]
+            },
+            "range": {
+              "$ref": "#/$defs/dateRange"
+            },
+            "explicit_empty_days": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "document",
+            "record",
+            "field"
+          ]
+        },
+        "require_document_sha256": {
+          "type": "boolean"
+        },
+        "require_page_number": {
+          "type": "boolean"
+        },
+        "require_locator": {
+          "type": "boolean"
+        },
+        "preserve_raw_text": {
+          "type": "boolean"
+        },
+        "preserve_raw_text_sha256": {
+          "type": "boolean"
+        },
+        "preserve_bounding_box": {
+          "type": "boolean"
+        }
+      }
+    },
+    "validationExpression": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "value"
+          ],
+          "properties": {
+            "operator": {
+              "const": "equals"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "value": {
+              "$ref": "#/$defs/scalarValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "value"
+          ],
+          "properties": {
+            "operator": {
+              "const": "not_equals"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "value": {
+              "$ref": "#/$defs/scalarValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "value"
+          ],
+          "properties": {
+            "operator": {
+              "const": "greater_than"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "value": {
+              "$ref": "#/$defs/scalarValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "value"
+          ],
+          "properties": {
+            "operator": {
+              "const": "less_than"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "value": {
+              "$ref": "#/$defs/scalarValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "value"
+          ],
+          "properties": {
+            "operator": {
+              "const": "matches"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field"
+          ],
+          "properties": {
+            "operator": {
+              "const": "empty"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field"
+          ],
+          "properties": {
+            "operator": {
+              "const": "not_empty"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "values"
+          ],
+          "properties": {
+            "operator": {
+              "const": "in"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/scalarValue"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "values"
+          ],
+          "properties": {
+            "operator": {
+              "const": "not_in"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/scalarValue"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "field",
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "operator": {
+              "const": "between"
+            },
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "minimum": {
+              "$ref": "#/$defs/scalarValue"
+            },
+            "maximum": {
+              "$ref": "#/$defs/scalarValue"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "expressions"
+          ],
+          "properties": {
+            "operator": {
+              "const": "and"
+            },
+            "expressions": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "$ref": "#/$defs/validationExpression"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "expressions"
+          ],
+          "properties": {
+            "operator": {
+              "const": "or"
+            },
+            "expressions": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "$ref": "#/$defs/validationExpression"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "expression"
+          ],
+          "properties": {
+            "operator": {
+              "const": "not"
+            },
+            "expression": {
+              "$ref": "#/$defs/validationExpression"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "if",
+            "then"
+          ],
+          "properties": {
+            "operator": {
+              "const": "implies"
+            },
+            "if": {
+              "$ref": "#/$defs/validationExpression"
+            },
+            "then": {
+              "$ref": "#/$defs/validationExpression"
+            }
+          }
+        }
+      ]
+    },
+    "validationRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "severity",
+        "assert"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assert": {
+          "$ref": "#/$defs/validationExpression"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "structural": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/validationRule"
+          }
+        },
+        "human": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required"
+          ],
+          "properties": {
+            "required": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "minProperties": 1
+    },
+    "queryOperand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/scalarValue"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parameter"
+          ],
+          "properties": {
+            "parameter": {
+              "$ref": "#/$defs/fieldName"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "context"
+          ],
+          "properties": {
+            "context": {
+              "enum": [
+                "current_date",
+                "timezone"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "queryFilter": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "equals"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "not_equals"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "greater_than"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "greater_or_equal"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "less_than"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "less_or_equal"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "contains"
+            },
+            "value": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "values"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "in"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/queryOperand"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "field",
+            "operator",
+            "minimum",
+            "maximum"
+          ],
+          "properties": {
+            "field": {
+              "$ref": "#/$defs/fieldName"
+            },
+            "operator": {
+              "const": "between"
+            },
+            "minimum": {
+              "$ref": "#/$defs/queryOperand"
+            },
+            "maximum": {
+              "$ref": "#/$defs/queryOperand"
+            }
+          }
+        }
+      ]
+    },
+    "queryParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "required"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "decimal",
+            "boolean",
+            "date",
+            "datetime",
+            "enum"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/scalarValue"
+          }
+        },
+        "default": {
+          "$ref": "#/$defs/scalarValue"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "values"
+            ]
+          }
+        }
+      ]
+    },
+    "queryDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "parameters",
+        "filters",
+        "allowed_states",
+        "cardinality",
+        "returns"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/fieldName"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/queryParameter"
+          }
+        },
+        "context": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "current_date",
+              "timezone"
+            ]
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/queryFilter"
+          }
+        },
+        "allowed_states": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "validated",
+              "corrected"
+            ]
+          }
+        },
+        "cardinality": {
+          "enum": [
+            "one",
+            "zero_or_one",
+            "many"
+          ]
+        },
+        "returns": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fieldName"
+          }
+        }
+      }
+    },
+    "indexDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/fieldName"
+          }
+        },
+        "unique": {
+          "type": "boolean"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sensitivity": {
+          "$ref": "#/$defs/identifier"
+        },
+        "preserve_raw_text": {
+          "type": "boolean"
+        },
+        "allow_network_handlers": {
+          "type": "boolean"
+        },
+        "redact_logs": {
+          "type": "boolean"
+        }
+      },
+      "minProperties": 1
+    }
+  }
+}
