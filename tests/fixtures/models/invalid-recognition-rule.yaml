@@ -1,0 +1,56 @@
+schema_version: 1
+model:
+  id: sample.basic-record
+  version: 1.0.0
+  title: Basic record model
+  document_type: sample_document
+  record_type: sample_record
+  status: active
+  engine_compatibility: ">=0.1,<1.0"
+recognition:
+  minimum_score: 1.0
+  ambiguity_policy: reject
+  rules:
+    - id: plain-text
+      type: magic_signature
+      value: text/plain
+      required: true
+      weight: 1
+extraction:
+  strategy: manual
+records:
+  type: sample_record
+  cardinality: many
+  natural_key:
+    - record_id
+  fields:
+    record_id:
+      type: string
+      required: true
+provenance:
+  level: record
+  require_document_sha256: true
+  require_locator: true
+validation:
+  structural:
+    enabled: true
+  rules: []
+  human:
+    required: true
+queries:
+  - name: by_id
+    parameters:
+      id:
+        type: string
+        required: true
+    filters:
+      - field: record_id
+        operator: equals
+        value:
+          parameter: id
+    allowed_states:
+      - validated
+      - corrected
+    cardinality: zero_or_one
+    returns:
+      - record_id

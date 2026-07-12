@@ -1,0 +1,284 @@
+schema_version: 1
+model:
+  id: sample.cafe-observations
+  version: 2.1.0-beta.1
+  title: Café observation model
+  document_type: observation_report
+  record_type: observation
+  status: active
+  engine_compatibility: ">=0.1,<1.0"
+  description: Synthetic UTF-8 fixture for città and café observations.
+recognition:
+  minimum_score: 0.75
+  ambiguity_policy: reject
+  rules:
+    - id: pdf
+      type: mime_type
+      value: application/pdf
+      required: true
+      weight: 1
+    - id: filename
+      type: filename_regex
+      value: "(?i)observations-[0-9]{4}\\.pdf"
+      required: false
+      weight: 1
+    - id: marker
+      type: text_contains
+      value: Café observations
+      required: true
+      weight: 3
+    - id: heading
+      type: text_regex
+      value: "(?m)^Observation report$"
+      required: false
+      weight: 2
+    - id: pages
+      type: page_count_between
+      value:
+        minimum: 1
+        maximum: 12
+      required: true
+      weight: 1
+    - id: exact-source
+      type: sha256
+      value: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      required: false
+      weight: 1
+    - id: authority
+      type: metadata_equals
+      value:
+        field: publisher
+        expected: Demo Authority
+      required: false
+      weight: 1
+extraction:
+  strategy: python_handler
+  handler: sample.observations.extract
+  options:
+    section: observations
+    columns:
+      - record_id
+      - observed_on
+document_metadata:
+  fields:
+    publisher:
+      type: string
+      required: true
+      default: Demo Authority
+    year:
+      type: integer
+      required: true
+    edition:
+      type: enum
+      required: false
+      nullable: true
+      values:
+        - standard
+        - revised
+records:
+  type: observation
+  cardinality: many
+  natural_key:
+    - record_id
+    - observed_on
+  fields:
+    record_id:
+      type: string
+      required: true
+      normalize:
+        - operation: trim
+        - operation: collapse_whitespace
+        - operation: uppercase
+      constraints:
+        min_length: 1
+        max_length: 32
+    observed_on:
+      type: date
+      required: true
+      normalize:
+        - operation: parse_date
+          format: "%Y-%m-%d"
+    observed_at:
+      type: datetime
+      required: false
+      nullable: true
+      normalize:
+        - operation: parse_datetime
+          format: "%Y-%m-%dT%H:%M:%S%z"
+    amount:
+      type: decimal
+      required: false
+      nullable: true
+      normalize:
+        - operation: parse_decimal
+      constraints:
+        minimum: 0
+    active:
+      type: boolean
+      required: true
+    category:
+      type: enum
+      required: true
+      values:
+        - indoor
+        - outdoor
+        - unknown
+    label:
+      type: string
+      required: true
+      normalize:
+        - operation: trim
+        - operation: lowercase
+        - operation: replace
+          old: "_"
+          new: " "
+        - operation: map
+          values:
+            città: city
+            café: cafe
+    tags:
+      type: list
+      required: true
+      items:
+        type: string
+        normalize:
+          - operation: trim
+          - operation: lowercase
+      constraints:
+        min_items: 0
+        max_items: 10
+    code:
+      type: string
+      required: false
+      normalize:
+        - operation: custom
+          handler: sample.normalize.code
+    details:
+      type: object
+      required: false
+      nullable: true
+      fields:
+        note:
+          type: string
+          required: false
+          nullable: true
+        score:
+          type: integer
+          required: true
+          constraints:
+            minimum: 0
+            maximum: 100
+temporal:
+  timezone: Europe/Rome
+  record_date_field: observed_on
+  document_validity:
+    from: "2026-01-01"
+    to: "2026-12-31"
+  coverage:
+    mode: complete_date_range
+    range:
+      from: "2026-01-01"
+      to: "2026-12-31"
+    explicit_empty_days: true
+provenance:
+  level: field
+  require_document_sha256: true
+  require_page_number: true
+  require_locator: true
+  preserve_raw_text: false
+  preserve_raw_text_sha256: true
+  preserve_bounding_box: true
+validation:
+  structural:
+    enabled: true
+  rules:
+    - id: active-records-require-label
+      severity: error
+      message: Active records require a label.
+      assert:
+        operator: implies
+        if:
+          operator: equals
+          field: active
+          value: true
+        then:
+          operator: not_empty
+          field: label
+    - id: amount-range
+      severity: warning
+      assert:
+        operator: or
+        expressions:
+          - operator: empty
+            field: amount
+          - operator: between
+            field: amount
+            minimum: 0
+            maximum: 100000
+  human:
+    required: true
+queries:
+  - name: by_date
+    description: Return observations for one date.
+    parameters:
+      target_date:
+        type: date
+        required: true
+      categories:
+        type: enum
+        required: false
+        values:
+          - indoor
+          - outdoor
+          - unknown
+    context:
+      - timezone
+    filters:
+      - field: observed_on
+        operator: equals
+        value:
+          parameter: target_date
+      - field: category
+        operator: in
+        values:
+          - indoor
+          - outdoor
+    allowed_states:
+      - validated
+      - corrected
+    cardinality: many
+    returns:
+      - record_id
+      - observed_on
+      - category
+      - label
+  - name: current_day
+    parameters: {}
+    context:
+      - current_date
+      - timezone
+    filters:
+      - field: observed_on
+        operator: equals
+        value:
+          context: current_date
+    allowed_states:
+      - validated
+      - corrected
+    cardinality: many
+    returns:
+      - record_id
+      - observed_on
+indexes:
+  - fields:
+      - observed_on
+    unique: false
+  - fields:
+      - record_id
+      - observed_on
+    unique: true
+security:
+  sensitivity: internal
+  preserve_raw_text: false
+  allow_network_handlers: false
+  redact_logs: true
