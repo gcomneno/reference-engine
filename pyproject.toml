@@ -17,6 +17,7 @@ dev = [
     "pytest>=8.0",
     "PyYAML>=6.0",
     "ruff>=0.5",
+    "types-jsonschema>=4.23",
     "types-PyYAML>=6.0",
 ]
 
