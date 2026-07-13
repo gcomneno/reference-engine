@@ -44,3 +44,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "reference_engine.resources" = ["*.json"]
+"reference_engine.resources.migrations" = ["*.sql"]

@@ -22,3 +22,11 @@ class ReferenceEngineError(Exception):
 
 class DocumentModelError(ReferenceEngineError):
     """A document model could not be loaded or validated."""
+
+
+class DatabaseError(ReferenceEngineError):
+    """A database connection invariant could not be established."""
+
+
+class MigrationError(DatabaseError):
+    """A database schema migration could not be inspected or applied."""
