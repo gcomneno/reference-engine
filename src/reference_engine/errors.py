@@ -30,3 +30,15 @@ class DatabaseError(ReferenceEngineError):
 
 class MigrationError(DatabaseError):
     """A database schema migration could not be inspected or applied."""
+
+
+class RepositoryError(DatabaseError):
+    """A persisted repository value conflicts with an existing value."""
+
+
+class ArtifactRepositoryError(RepositoryError):
+    """An artifact could not be registered consistently."""
+
+
+class DocumentModelRepositoryError(RepositoryError):
+    """A document model could not be registered consistently."""
