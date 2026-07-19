@@ -84,26 +84,18 @@ Invariants:
 
 ## 3. Recognition
 
-Recognition evaluates a registered document against active model versions.
+Recognition MUST evaluate one immutable snapshot of a registered document
+against exactly the active model versions. It MUST record deterministic
+rule-level statuses, eligibility, normalized scores, ranks, safe evidence, and
+one of `matched`, `not_matched`, `ambiguous`, `unsupported`, or `failed`.
+Unavailable evaluation MUST NOT become an ordinary failed rule. Invalid rule
+definitions and technical evaluation errors fail the run as defined by the
+normative recognition contract.
 
-For every candidate model version it records:
-
-- required-rule results;
-- optional weighted-rule results;
-- normalized score;
-- eligibility;
-- rank;
-- detailed evidence.
-
-Run outcomes:
-
-- `matched`
-- `not_matched`
-- `ambiguous`
-- `unsupported`
-- `failed`
-
-Recognition is a proposal. It does not authorize extraction and does not create a binding by implication.
+Recognition is append-only and is only a proposal. It MUST NOT authorize
+extraction or create a binding. Candidate selection, rule semantics, scoring,
+ranking, outcomes, evidence, and persistence are defined normatively in the
+[Recognition contract v1](recognition-v1.md).
 
 ## 4. Binding
 

@@ -65,6 +65,13 @@ Version meaning:
 ## Recognition
 
 Recognition uses explicit rules, required checks, weights, and a threshold.
+Every rule contains exactly `id`, `type`, `value`, `required`, and `weight`;
+rule IDs are unique and array order is significant. `weight` is a finite
+non-negative number. Each rule type has a closed `value` shape: a string for
+`mime_type`, `filename_regex`, `text_contains`, `text_regex`, and `sha256`; an
+inclusive `{minimum, maximum}` integer object for `page_count_between`; or a
+closed `{field, expected}` object for `metadata_equals`. The latter selects only
+the supported technical document fields and is not JSONPath.
 
 Supported rule types in v1:
 
@@ -84,9 +91,11 @@ Recognition run outcomes:
 - `unsupported`
 - `failed`
 
-`unsupported` indicates that the document or required recognition capability
-cannot be evaluated by the current engine. It must not be converted into a
-match or silently treated as a lower score.
+`unsupported` is reserved for an otherwise valid candidate that remains
+indeterminate because immutable input or evaluator capability is unavailable.
+Invalid definitions and technical evaluator faults produce `failed`, not
+`unsupported`. The normative candidate-state and run-outcome rules are in the
+[Recognition contract v1](recognition-v1.md).
 
 Example:
 
@@ -112,14 +121,10 @@ recognition:
       weight: 4
 ```
 
-Semantics:
-
-- a failed required rule makes the model ineligible;
-- optional rules contribute to a reproducible score;
-- a score below the threshold is not a match;
-- multiple eligible candidates without a deterministic winner produce `ambiguous`;
-- recognition records evidence and ranking;
-- recognition proposes a model; it does not create the binding.
+The exact validation, input, normalization, capability, scoring, ranking,
+evidence, and outcome semantics are defined by the normative
+[Recognition contract v1](recognition-v1.md). Recognition proposes a model; it
+does not create a binding.
 
 ## Document metadata
 

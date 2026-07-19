@@ -111,6 +111,7 @@ The detailed state transitions and invariants are defined in [Workflow v1](workf
 
 - [Boundaries and MVP](boundaries-and-mvp.md)
 - [Document model YAML v1](document-model-v1.md)
+- [Recognition contract v1](recognition-v1.md)
 - [SQLite data model v1](data-model-v1.md)
 - [Workflow v1](workflow-v1.md)
 - [Knowledge vault layout](vault-layout.md)
