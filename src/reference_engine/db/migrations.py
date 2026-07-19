@@ -85,7 +85,14 @@ def _packaged_migrations() -> tuple[MigrationDefinition, ...]:
             code="MIGRATION_RESOURCE_UNAVAILABLE",
             message="The packaged migration resources are unavailable.",
         ) from error
-    return (_resource_definition(1, "001_initial_schema.sql", root),)
+    return (
+        _resource_definition(1, "001_initial_schema.sql", root),
+        _resource_definition(
+            2,
+            "002_recognition_run_snapshots.sql",
+            root,
+        ),
+    )
 
 
 def get_applied_migrations(

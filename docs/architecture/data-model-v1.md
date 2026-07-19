@@ -123,6 +123,18 @@ One attempt to evaluate a document against available model versions:
 - `outcome`
 - `error_code`
 - `error_message`
+- `input_snapshot_json`
+- `input_snapshot_sha256`
+
+The snapshot columns contain canonical, privacy-safe run evidence and its
+lowercase hexadecimal SHA-256. They are either both null or both non-null.
+Every new non-failed run requires both values. The schema permits a failed run
+to omit both; repository and orchestration code may do so only when the failure
+prevented snapshot completion.
+
+Migration 002 preserves pre-migration rows with both values null. Forward-only
+insert and update triggers enforce the snapshot invariant for subsequent
+writes without fabricating evidence for historical runs.
 
 Outcomes:
 
