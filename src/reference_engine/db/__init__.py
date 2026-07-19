@@ -17,6 +17,12 @@ from reference_engine.db.document_models import (
     register_document_model,
     register_document_model_version,
 )
+from reference_engine.db.documents import (
+    Document,
+    get_document,
+    get_document_by_sha256,
+    register_document,
+)
 from reference_engine.db.migrations import (
     AppliedMigration,
     MigrationReport,
@@ -29,6 +35,7 @@ __all__ = [
     "Artifact",
     "DocumentModel",
     "DocumentModelVersion",
+    "Document",
     "MigrationReport",
     "ModelQueryDefinition",
     "apply_migrations",
@@ -39,7 +46,10 @@ __all__ = [
     "get_artifact_by_storage",
     "get_document_model",
     "get_document_model_version",
+    "get_document",
+    "get_document_by_sha256",
     "register_artifact",
     "register_document_model",
     "register_document_model_version",
+    "register_document",
 ]
