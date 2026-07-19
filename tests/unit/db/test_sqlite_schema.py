@@ -49,6 +49,8 @@ VIEWS = {
     "queryable_record_fields",
 }
 TRIGGERS = {
+    "recognition_runs_snapshot_insert",
+    "recognition_runs_snapshot_update",
     "dataset_publications_no_delete",
     "dataset_publications_no_update",
     "dataset_publications_sequence_increasing",
@@ -159,30 +161,366 @@ def _active(connection: sqlite3.Connection) -> list[int]:
     return [row[0] for row in connection.execute("SELECT id FROM active_dataset_versions")]
 
 
-def test_migration_mirror_is_byte_identical() -> None:
+@pytest.mark.parametrize(
+    "name",
+    [
+        "001_initial_schema.sql",
+        "002_recognition_run_snapshots.sql",
+    ],
+)
+def test_migration_mirror_is_byte_identical(name: str) -> None:
     root = Path(__file__).parents[3]
-    authoritative = (root / "migrations/001_initial_schema.sql").read_bytes()
+    authoritative = (root / "migrations" / name).read_bytes()
     packaged = (
-        root / "src/reference_engine/resources/migrations/001_initial_schema.sql"
+        root
+        / "src/reference_engine/resources/migrations"
+        / name
     ).read_bytes()
+
     assert packaged == authoritative
 
 
-def test_packaged_migration_report_metadata_and_idempotency(tmp_path: Path) -> None:
+def test_packaged_migration_report_metadata_and_idempotency(
+    tmp_path: Path,
+) -> None:
     connection = connect_database(tmp_path / "db.sqlite3")
     first = apply_migrations(connection)
     second = apply_migrations(connection)
-    expected_hash = hashlib.sha256(
-        (Path(__file__).parents[3] / "migrations/001_initial_schema.sql").read_bytes()
-    ).hexdigest()
 
-    assert [item.version for item in first.applied] == [1]
+    root = Path(__file__).parents[3]
+    migration_names = [
+        "001_initial_schema.sql",
+        "002_recognition_run_snapshots.sql",
+    ]
+    expected_hashes = [
+        hashlib.sha256(
+            (root / "migrations" / name).read_bytes()
+        ).hexdigest()
+        for name in migration_names
+    ]
+
+    assert [item.version for item in first.applied] == [1, 2]
     assert first.skipped == ()
     assert second.applied == ()
-    assert [item.version for item in second.skipped] == [1]
+    assert [item.version for item in second.skipped] == [1, 2]
     assert get_applied_migrations(connection) == first.applied
-    assert first.applied[0].name == "001_initial_schema.sql"
-    assert first.applied[0].sha256 == expected_hash
+    assert [item.name for item in first.applied] == migration_names
+    assert [item.sha256 for item in first.applied] == expected_hashes
+
+
+def _authoritative_migration(
+    version: int,
+    name: str,
+) -> MigrationDefinition:
+    root = Path(__file__).parents[3]
+    return MigrationDefinition(
+        version,
+        name,
+        (root / "migrations" / name).read_bytes(),
+    )
+
+
+def _seed_recognition_document(
+    connection: sqlite3.Connection,
+) -> None:
+    _artifact(connection, 1, "source_document")
+    connection.execute(
+        """INSERT INTO documents
+           (id, source_artifact_id, content_sha256,
+            original_filename, source_url, retrieved_at,
+            published_date, page_count, registered_at)
+           VALUES (
+               1, 1, ?, 'source.pdf',
+               NULL, NULL, NULL, NULL, ?
+           )""",
+        (HASH, NOW),
+    )
+
+
+def _insert_recognition_run(
+    connection: sqlite3.Connection,
+    *,
+    run_id: int,
+    outcome: str,
+    snapshot_json: str | None,
+    snapshot_sha256: str | None,
+) -> None:
+    connection.execute(
+        """INSERT INTO recognition_runs
+           (id, document_id, engine_version,
+            started_at, completed_at, outcome,
+            error_code, error_message,
+            input_snapshot_json,
+            input_snapshot_sha256)
+           VALUES (
+               ?, 1, 'test-engine',
+               ?, ?, ?,
+               NULL, NULL, ?, ?
+           )""",
+        (
+            run_id,
+            NOW,
+            NOW,
+            outcome,
+            snapshot_json,
+            snapshot_sha256,
+        ),
+    )
+
+
+def test_existing_database_upgrades_without_data_loss() -> None:
+    connection = connect_database(":memory:")
+    initial = _authoritative_migration(
+        1,
+        "001_initial_schema.sql",
+    )
+    _apply_migration_definitions(connection, (initial,))
+    _seed_recognition_document(connection)
+
+    connection.execute(
+        """INSERT INTO recognition_runs
+           (id, document_id, engine_version,
+            started_at, completed_at, outcome,
+            error_code, error_message)
+           VALUES (
+               1, 1, 'legacy-engine',
+               ?, ?, 'matched',
+               NULL, NULL
+           )""",
+        (NOW, NOW),
+    )
+    connection.commit()
+
+    report = apply_migrations(connection)
+
+    assert [item.version for item in report.applied] == [2]
+    assert [item.version for item in report.skipped] == [1]
+    rows = connection.execute(
+        """SELECT id, outcome,
+                  input_snapshot_json,
+                  input_snapshot_sha256
+           FROM recognition_runs"""
+    ).fetchall()
+
+    assert [tuple(row) for row in rows] == [
+        (1, "matched", None, None),
+    ]
+
+    rerun = apply_migrations(connection)
+    assert rerun.applied == ()
+    assert [item.version for item in rerun.skipped] == [1, 2]
+
+
+def test_recognition_snapshot_columns_are_nullable_text(
+    database: sqlite3.Connection,
+) -> None:
+    columns = {
+        row["name"]: row
+        for row in database.execute(
+            "PRAGMA table_info(recognition_runs)"
+        )
+    }
+
+    for name in (
+        "input_snapshot_json",
+        "input_snapshot_sha256",
+    ):
+        assert columns[name]["type"] == "TEXT"
+        assert columns[name]["notnull"] == 0
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "matched",
+        "not_matched",
+        "ambiguous",
+        "unsupported",
+    ],
+)
+def test_non_failed_recognition_run_requires_snapshot_pair(
+    database: sqlite3.Connection,
+    outcome: str,
+) -> None:
+    _seed_recognition_document(database)
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="snapshot invariant violated",
+    ):
+        _insert_recognition_run(
+            database,
+            run_id=1,
+            outcome=outcome,
+            snapshot_json=None,
+            snapshot_sha256=None,
+        )
+
+
+@pytest.mark.parametrize(
+    ("snapshot_json", "snapshot_sha256"),
+    [
+        ("{}", None),
+        (None, HASH),
+    ],
+)
+def test_recognition_snapshot_pair_rejects_one_sided_values(
+    database: sqlite3.Connection,
+    snapshot_json: str | None,
+    snapshot_sha256: str | None,
+) -> None:
+    _seed_recognition_document(database)
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="snapshot invariant violated",
+    ):
+        _insert_recognition_run(
+            database,
+            run_id=1,
+            outcome="failed",
+            snapshot_json=snapshot_json,
+            snapshot_sha256=snapshot_sha256,
+        )
+
+
+def test_recognition_snapshot_rejects_invalid_json(
+    database: sqlite3.Connection,
+) -> None:
+    _seed_recognition_document(database)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        _insert_recognition_run(
+            database,
+            run_id=1,
+            outcome="matched",
+            snapshot_json="not-json",
+            snapshot_sha256=HASH,
+        )
+
+
+@pytest.mark.parametrize(
+    "snapshot_sha256",
+    [
+        "a" * 63,
+        "a" * 65,
+        "A" * 64,
+        "g" * 64,
+    ],
+)
+def test_recognition_snapshot_rejects_invalid_sha256(
+    database: sqlite3.Connection,
+    snapshot_sha256: str,
+) -> None:
+    _seed_recognition_document(database)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        _insert_recognition_run(
+            database,
+            run_id=1,
+            outcome="matched",
+            snapshot_json="{}",
+            snapshot_sha256=snapshot_sha256,
+        )
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        "matched",
+        "not_matched",
+        "ambiguous",
+        "unsupported",
+        "failed",
+    ],
+)
+def test_recognition_snapshot_accepts_valid_pair(
+    database: sqlite3.Connection,
+    outcome: str,
+) -> None:
+    _seed_recognition_document(database)
+
+    _insert_recognition_run(
+        database,
+        run_id=1,
+        outcome=outcome,
+        snapshot_json="{}",
+        snapshot_sha256=HASH,
+    )
+
+    row = database.execute(
+        """SELECT input_snapshot_json,
+                  input_snapshot_sha256
+           FROM recognition_runs
+           WHERE id = 1"""
+    ).fetchone()
+
+    assert tuple(row) == ("{}", HASH)
+
+
+def test_failed_recognition_run_accepts_missing_snapshot(
+    database: sqlite3.Connection,
+) -> None:
+    _seed_recognition_document(database)
+
+    _insert_recognition_run(
+        database,
+        run_id=1,
+        outcome="failed",
+        snapshot_json=None,
+        snapshot_sha256=None,
+    )
+
+    row = database.execute(
+        """SELECT input_snapshot_json,
+                  input_snapshot_sha256
+           FROM recognition_runs
+           WHERE id = 1"""
+    ).fetchone()
+
+    assert tuple(row) == (None, None)
+
+
+def test_recognition_snapshot_update_enforces_final_values(
+    database: sqlite3.Connection,
+) -> None:
+    _seed_recognition_document(database)
+    _insert_recognition_run(
+        database,
+        run_id=1,
+        outcome="failed",
+        snapshot_json=None,
+        snapshot_sha256=None,
+    )
+
+    with pytest.raises(
+        sqlite3.IntegrityError,
+        match="snapshot invariant violated",
+    ):
+        database.execute(
+            """UPDATE recognition_runs
+               SET outcome = 'matched'
+               WHERE id = 1"""
+        )
+
+    database.execute(
+        """UPDATE recognition_runs
+           SET outcome = 'matched',
+               input_snapshot_json = '{}',
+               input_snapshot_sha256 = ?
+           WHERE id = 1""",
+        (HASH,),
+    )
+
+    row = database.execute(
+        """SELECT outcome,
+                  input_snapshot_json,
+                  input_snapshot_sha256
+           FROM recognition_runs
+           WHERE id = 1"""
+    ).fetchone()
+
+    assert tuple(row) == ("matched", "{}", HASH)
 
 
 def test_migrations_apply_report_and_skip_in_version_order() -> None:

@@ -446,18 +446,24 @@ snapshotting completed. If the database cannot persist that row, the caller
 receives the error. Redacted messages contain no document values, paths, URLs,
 YAML, SQL parameters, stack traces, or source text.
 
-The current schema is insufficient for the complete v1 contract:
-`recognition_runs` has neither snapshot JSON nor snapshot SHA-256. Candidate
-`details_json` cannot cover zero-result and failed runs and MUST NOT duplicate
-run-wide data. The smallest future schema addition is two nullable run columns:
-a canonical run-snapshot JSON text column and a 64-character lowercase
-hexadecimal run-snapshot SHA-256 column. A database constraint MUST require both
-columns to be null or both non-null. They MUST be non-null for every non-failed
-run and for a failed run when snapshot completion preceded the fault; both are
-null only for a failed run whose fault prevented completion of the snapshot.
-The hash column MUST have an equivalent lowercase-hexadecimal constraint. This
-document makes no schema change. Persistence MUST NOT claim recognition-v1
-conformance until that schema issue is implemented.
+Migration 002 adds `input_snapshot_json` and `input_snapshot_sha256` to
+`recognition_runs`. The JSON column accepts only null or valid JSON. The hash
+column accepts only null or a 64-character lowercase hexadecimal SHA-256.
+
+Database triggers require both columns to be null or both non-null and require
+the pair for every new non-failed run. A new failed run may retain both null
+only when its fault prevented snapshot completion. When snapshotting completed,
+the failed run persists both values.
+
+The invariant is forward-only because SQLite validates an `ALTER TABLE` column
+constraint against existing rows. Pre-migration recognition runs are therefore
+preserved with both columns null rather than receiving fabricated evidence.
+Such legacy rows are not recognition-v1-conformant. Updates to their outcome or
+snapshot fields must first establish a valid final snapshot state.
+
+Persistence MUST NOT claim full recognition-v1 conformance until the
+recognition repository and orchestration enforce the lifecycle policy defined
+above.
 
 ## Binding boundary
 
@@ -517,10 +523,13 @@ outcome and no winner; it is never `unsupported`.
 
 ## Bounded follow-up implementation issues
 
-First, a small schema issue MUST add canonical run snapshot JSON and its
-SHA-256 to `recognition_runs`, including the pre-snapshot failure policy stated
-above. The recognition implementation issue MUST explicitly depend on that
-schema issue and MUST NOT claim v1 persistence conformance before it lands.
+Migration 002 implements the schema prerequisite by adding canonical run
+snapshot JSON and its SHA-256 to `recognition_runs`, including forward-only
+database enforcement of the snapshot-pair and non-failed-run invariants.
+
+The recognition implementation remains dependent on that migration and MUST
+not claim full v1 persistence conformance until its repository and
+orchestration enforce the pre-snapshot failure policy.
 
 After that dependency, implementation scope is limited to recognition domain
 types, evaluators for already available capabilities, SQLite recognition
