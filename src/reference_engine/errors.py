@@ -42,3 +42,11 @@ class ArtifactRepositoryError(RepositoryError):
 
 class DocumentModelRepositoryError(RepositoryError):
     """A document model could not be registered consistently."""
+
+
+class DocumentRepositoryError(RepositoryError):
+    """A document row could not be registered consistently."""
+
+
+class DocumentRegistrationError(ReferenceEngineError):
+    """A source document could not be registered."""
