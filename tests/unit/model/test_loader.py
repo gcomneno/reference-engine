@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 from copy import deepcopy
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,6 +21,7 @@ from reference_engine.model import (
     normalize_document_model,
     validate_document_model,
 )
+from reference_engine.recognition.rules import parse_recognition_definition
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / "tests" / "fixtures" / "models"
@@ -258,6 +260,9 @@ def test_meaningful_change_changes_hash() -> None:
     first = fixture_data()
     second = deepcopy(first)
     cast(dict[str, object], second["model"])["title"] = "Changed title"
+    for data in (first, second):
+        recognition = cast(dict[str, Any], data["recognition"])
+        recognition["minimum_score"] = Decimal(str(recognition["minimum_score"]))
 
     assert compute_definition_sha256(first) != compute_definition_sha256(second)
 
@@ -294,3 +299,129 @@ def test_loader_performs_no_network_access(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(os, "system", forbidden_system)
 
     load_document_model(FIXTURES / "valid-minimal.yaml")
+
+
+def test_recognition_decimals_survive_yaml_and_canonical_persistence_exactly(
+    tmp_path: Path,
+) -> None:
+    text = (FIXTURES / "valid-minimal.yaml").read_text(encoding="utf-8")
+    text = text.replace("minimum_score: 1.0", "minimum_score: 0.10000000000000001")
+    text = text.replace("weight: 1", "weight: 0.10000000000000001", 1)
+    path = tmp_path / "exact.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    loaded = load_document_model(path)
+
+    assert loaded.canonical_json.count("0.10000000000000001") == 2
+    assert '"0.10000000000000001"' not in loaded.canonical_json
+    parsed = parse_recognition_definition(loaded.canonical_json)
+    assert parsed.threshold == Decimal("0.10000000000000001")
+    assert parsed.rules[0].weight == Decimal("0.10000000000000001")
+
+
+@pytest.mark.parametrize(
+    ("data", "expected_path"),
+    [
+        ({"recognition": {"minimum_score": 0.5}}, "/recognition/minimum_score"),
+        (
+            {"recognition": {"rules": [{"weight": 0.5}]}},
+            "/recognition/rules/0/weight",
+        ),
+    ],
+)
+def test_programmatic_recognition_floats_are_rejected(
+    data: dict[str, object], expected_path: str
+) -> None:
+    for operation in (normalize_document_model, canonicalize_document_model):
+        with pytest.raises(DocumentModelError) as caught:
+            operation(data)
+
+        assert caught.value.code == "MODEL_SEMANTIC_INVALID"
+        assert caught.value.message == (
+            "Recognition numbers must use integers or exact decimals."
+        )
+        assert caught.value.data_path == expected_path
+
+
+def test_unrelated_programmatic_finite_float_remains_supported() -> None:
+    data = {"extension": {"ratio": 0.5}}
+
+    assert normalize_document_model(data) == data
+    assert canonicalize_document_model(data) == '{"extension":{"ratio":0.5}}'
+
+
+@pytest.mark.parametrize(
+    ("number", "expected_minimum", "expected_weight"),
+    [
+        (1, '"minimum_score":1', '"weight":1'),
+        (Decimal("1.00"), '"minimum_score":1.0', '"weight":1.0'),
+    ],
+)
+def test_exact_programmatic_recognition_numbers_remain_supported(
+    number: int | Decimal,
+    expected_minimum: str,
+    expected_weight: str,
+) -> None:
+    data = {
+        "recognition": {
+            "minimum_score": number,
+            "rules": [{"weight": number}],
+        }
+    }
+
+    assert normalize_document_model(data) == data
+    canonical = canonicalize_document_model(data)
+    assert expected_minimum in canonical
+    assert expected_weight in canonical
+    json.loads(canonical, parse_float=Decimal)
+
+
+def _load_with_recognition_numbers(
+    tmp_path: Path, name: str, minimum_score: str, weight: str
+) -> Any:
+    text = (FIXTURES / "valid-minimal.yaml").read_text(encoding="utf-8")
+    text = text.replace("minimum_score: 1.0", f"minimum_score: {minimum_score}")
+    text = text.replace("weight: 1", f"weight: {weight}", 1)
+    path = tmp_path / name
+    path.write_text(text, encoding="utf-8")
+    return load_document_model(path)
+
+
+@pytest.mark.parametrize(
+    ("first_value", "second_value", "expected_token"),
+    [
+        ("1.0", "1.00", "1.0"),
+        ("0.001", "1.0e-3", "0.001"),
+        ("0.7500", "0.75", "0.75"),
+    ],
+)
+def test_equivalent_yaml_decimal_scales_have_identical_json_and_hash(
+    tmp_path: Path,
+    first_value: str,
+    second_value: str,
+    expected_token: str,
+) -> None:
+    first = _load_with_recognition_numbers(
+        tmp_path, "first.yaml", first_value, first_value
+    )
+    second = _load_with_recognition_numbers(
+        tmp_path, "second.yaml", second_value, second_value
+    )
+
+    assert first.canonical_json == second.canonical_json
+    assert first.definition_sha256 == second.definition_sha256
+    assert f'"minimum_score":{expected_token}' in first.canonical_json
+    assert f'"weight":{expected_token}' in first.canonical_json
+    json.loads(first.canonical_json)
+
+
+def test_negative_zero_is_persisted_then_rejected_by_recognition_parser(
+    tmp_path: Path,
+) -> None:
+    loaded = _load_with_recognition_numbers(tmp_path, "negative-zero.yaml", "-0.0", "1")
+
+    assert '"minimum_score":-0.0' in loaded.canonical_json
+    assert json.loads(loaded.canonical_json)["recognition"]["minimum_score"] == 0.0
+    parsed = parse_recognition_definition(loaded.canonical_json)
+    assert parsed.threshold is None
+    assert parsed.invalid_code == "RECOGNITION_DEFINITION_INVALID"

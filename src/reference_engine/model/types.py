@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -11,8 +11,8 @@ from pathlib import Path
 class LoadedDocumentModel:
     """A validated model and its deterministic definition identity."""
 
-    source_path: Path
-    data: Mapping[str, object]
-    normalized_data: Mapping[str, object]
-    canonical_json: str
+    source_path: Path = field(repr=False)
+    data: Mapping[str, object] = field(repr=False)
+    normalized_data: Mapping[str, object] = field(repr=False)
+    canonical_json: str = field(repr=False)
     definition_sha256: str
