@@ -85,8 +85,19 @@ class SafeString:
 
 
 @dataclass(frozen=True)
+class SafeTextProbeSnapshot:
+    sha256: str
+    character_count: int
+    limit: int
+    truncated: bool
+
+    def __post_init__(self) -> None:
+        validate_sha256(self.sha256, "SafeTextProbeSnapshot.sha256")
+
+
+@dataclass(frozen=True)
 class SafeDocumentInputSnapshot:
-    fields: tuple[tuple[str, JSONScalar | SafeString], ...]
+    fields: tuple[tuple[str, JSONScalar | SafeString | SafeTextProbeSnapshot], ...]
 
 
 @dataclass(frozen=True)
@@ -233,3 +244,31 @@ class RankingResult:
     evaluations: tuple[CandidateEvaluation, ...]
     winner: CandidateEvaluation | None
     outcome: RunOutcome
+
+
+class RunFailureCode(StrEnum):
+    """Closed, public reasons for a run which could not be completed."""
+
+    SNAPSHOT_FAILED = "SNAPSHOT_FAILED"
+    ORCHESTRATION_FAILED = "ORCHESTRATION_FAILED"
+    EVALUATION_FAILED = "EVALUATION_FAILED"
+
+
+@dataclass(frozen=True)
+class RecognitionCompletion:
+    """Immutable domain output accepted by the persistence repository.
+
+    ``ranking`` is absent only when a run-level failure prevented completion of
+    the candidate set.  Raw inputs are retained only in memory and allow the
+    repository to prove deterministic evaluator results without rereading a
+    document or any mutable catalogue state.
+    """
+
+    document_id: int
+    engine_version: str
+    started_at: str
+    completed_at: str
+    snapshot: RecognitionRunSnapshot | None
+    inputs: TechnicalDocumentInputs | None = dataclass_field(default=None, repr=False)
+    ranking: RankingResult | None = None
+    failure_code: RunFailureCode | None = None

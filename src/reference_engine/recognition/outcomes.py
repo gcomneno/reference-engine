@@ -27,10 +27,13 @@ from reference_engine.recognition.types import (
     CapabilitySnapshot,
     RankingResult,
     RecognitionDefinition,
+    RecognitionRunSnapshot,
     RuleEvaluationStatus,
     RuleEvidence,
     RunOutcome,
     SafeEvidenceValue,
+    SafeString,
+    SafeTextProbeSnapshot,
     TechnicalDocumentInputs,
 )
 
@@ -46,6 +49,64 @@ _UNAVAILABLE = frozenset(
         RuleEvaluationStatus.UNAVAILABLE_INPUT,
     }
 )
+
+
+def serialize_run_snapshot(snapshot: RecognitionRunSnapshot) -> tuple[str, str]:
+    """Return the canonical durable projection and its exact UTF-8 SHA-256."""
+
+    safe_inputs: dict[str, object] = {}
+    for name, item in snapshot.safe_document_inputs.fields:
+        if name in safe_inputs:
+            raise ValueError("duplicate safe document input")
+        if isinstance(item, SafeString):
+            value: object = {"length": item.length, "sha256": item.sha256}
+        elif isinstance(item, SafeTextProbeSnapshot):
+            value = {
+                "character_count": item.character_count,
+                "limit": item.limit,
+                "sha256": item.sha256,
+                "truncated": item.truncated,
+            }
+        else:
+            value = item
+        safe_inputs[name] = value
+    capabilities: list[dict[str, object]] = []
+    for capability in snapshot.capabilities:
+        configuration: dict[str, object] = {}
+        for entry in capability.configuration:
+            if entry.name in configuration:
+                raise ValueError("duplicate capability configuration")
+            configuration[entry.name] = entry.value
+        capabilities.append(
+            {
+                "availability": capability.availability.value,
+                "configuration": configuration,
+                "identifier": capability.identifier,
+                "version": capability.version,
+            }
+        )
+    value = {
+        "capabilities": capabilities,
+        "candidates": [
+            {
+                "definition_sha256": item.definition_sha256,
+                "model_key": item.model_key,
+                "model_version_id": item.model_version_id,
+                "schema_version": item.schema_version,
+                "semantic_version": item.semantic_version,
+                "status": item.status,
+            }
+            for item in snapshot.candidates
+        ],
+        "document_id": snapshot.document_id,
+        "document_sha256": snapshot.document_sha256,
+        "engine_version": snapshot.engine_version,
+        "safe_document_inputs": safe_inputs,
+        "snapshot_schema_version": snapshot.snapshot_schema_version,
+        "source_artifact_id": snapshot.source_artifact_id,
+    }
+    encoded = canonical_json_bytes(value)
+    return encoded.decode("utf-8"), bytes_sha256(encoded)
 
 
 def _safe_value(value: SafeEvidenceValue | None) -> object:
@@ -145,6 +206,17 @@ def evaluate_candidate(
     rules = tuple(
         evaluate_rule(rule, inputs, capabilities) for rule in definition.rules
     )
+    return complete_candidate(candidate, definition, rules, run_snapshot_sha256)
+
+
+def complete_candidate(
+    candidate: ActiveCandidateSnapshot,
+    definition: RecognitionDefinition,
+    rules: tuple[RuleEvidence, ...],
+    run_snapshot_sha256: str,
+) -> CandidateEvaluation:
+    """Derive every candidate projection from typed evaluator evidence."""
+
     failed = (
         any(rule.status in _FAILED for rule in rules) or definition.threshold is None
     )
