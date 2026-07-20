@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 
 import yaml
 from yaml.constructor import ConstructorError
+from yaml.nodes import ScalarNode
 
 from reference_engine.errors import DocumentModelError
 from reference_engine.model.normalization import (
@@ -16,6 +18,23 @@ from reference_engine.model.normalization import (
 )
 from reference_engine.model.types import LoadedDocumentModel
 from reference_engine.model.validation import validate_document_model
+
+
+class _ExactNumberSafeLoader(yaml.SafeLoader):
+    """Per-call safe loader retaining YAML floating scalars as exact decimals."""
+
+
+def _construct_decimal(loader: yaml.SafeLoader, node: ScalarNode) -> Decimal:
+    value = loader.construct_scalar(node).replace("_", "")
+    try:
+        return Decimal(value)
+    except ArithmeticError as error:
+        raise ConstructorError(
+            None, None, "invalid decimal scalar", node.start_mark
+        ) from error
+
+
+_ExactNumberSafeLoader.add_constructor("tag:yaml.org,2002:float", _construct_decimal)
 
 
 def _read_model(path: Path) -> str:
@@ -33,7 +52,7 @@ def _read_model(path: Path) -> str:
 
 def _parse_yaml(text: str) -> Mapping[str, object]:
     try:
-        parsed: object = yaml.safe_load(text)
+        parsed: object = yaml.load(text, Loader=_ExactNumberSafeLoader)
     except ConstructorError as error:
         raise DocumentModelError(
             "MODEL_YAML_UNSAFE", "The model contains a prohibited YAML tag."

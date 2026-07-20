@@ -48,5 +48,9 @@ class DocumentRepositoryError(RepositoryError):
     """A document row could not be registered consistently."""
 
 
+class RecognitionRepositoryError(RepositoryError):
+    """A completed recognition run could not be persisted consistently."""
+
+
 class DocumentRegistrationError(ReferenceEngineError):
     """A source document could not be registered."""

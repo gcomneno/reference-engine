@@ -29,6 +29,13 @@ from reference_engine.db.migrations import (
     apply_migrations,
     get_applied_migrations,
 )
+from reference_engine.db.recognition_runs import (
+    RecognitionResult,
+    RecognitionRun,
+    get_recognition_results,
+    get_recognition_run,
+    persist_completed_recognition_run,
+)
 
 __all__ = [
     "AppliedMigration",
@@ -38,6 +45,8 @@ __all__ = [
     "Document",
     "MigrationReport",
     "ModelQueryDefinition",
+    "RecognitionResult",
+    "RecognitionRun",
     "apply_migrations",
     "connect_database",
     "get_applied_migrations",
@@ -48,8 +57,11 @@ __all__ = [
     "get_document_model_version",
     "get_document",
     "get_document_by_sha256",
+    "get_recognition_results",
+    "get_recognition_run",
     "register_artifact",
     "register_document_model",
     "register_document_model_version",
     "register_document",
+    "persist_completed_recognition_run",
 ]
