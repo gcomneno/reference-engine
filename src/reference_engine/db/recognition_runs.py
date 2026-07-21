@@ -17,7 +17,6 @@ from typing import Any, cast
 from reference_engine.errors import RecognitionRepositoryError
 from reference_engine.recognition.canonical import (
     canonical_json,
-    string_digest,
     validate_sha256,
 )
 from reference_engine.recognition.decimals import (
@@ -34,6 +33,7 @@ from reference_engine.recognition.outcomes import (
     serialize_run_snapshot,
 )
 from reference_engine.recognition.rules import parse_recognition_definition
+from reference_engine.recognition.snapshots import project_safe_document_inputs
 from reference_engine.recognition.types import (
     Availability,
     CandidateEvaluation,
@@ -1315,43 +1315,27 @@ _FAILURE_MESSAGES = {
 }
 
 
-def _safe_input_projection(name: str, inputs: TechnicalDocumentInputs) -> object:
-    if name == "recognition_text_probe":
-        acquisition = inputs.recognition_text_probe
-        if acquisition.status is not ProbeAcquisitionStatus.AVAILABLE_WITH_PROBE:
-            return {"availability": "unavailable"}
-        probe = acquisition.probe
-        if probe is None:
-            raise _invalid("Recognition probe state is invalid.")
-        digest, length = string_digest(probe.text)
-        return {
-            "character_count": length,
-            "limit": probe.limit,
-            "sha256": digest,
-            "truncated": probe.truncated,
-        }
-    item = cast(Any, getattr(inputs, name))
-    if item.availability is Availability.UNAVAILABLE:
-        return {"availability": "unavailable"}
-    value = item.value
-    if name == "mime_type" and isinstance(value, str):
-        value = value.split(";", 1)[0].strip().lower()
-    if name == "sha256" and isinstance(value, str):
-        value = value.lower()
-    if name == "original_filename" and isinstance(value, str):
-        value = re.split(r"[/\\\\]", value)[-1]
-    if name in {"original_filename", "source_url"} and isinstance(value, str):
-        digest, length = string_digest(value)
-        return {"length": length, "sha256": digest}
-    return value
-
-
 def _validate_context_projection(
     snapshot: RecognitionRunSnapshot, inputs: TechnicalDocumentInputs
 ) -> None:
     projected = dict(snapshot.safe_document_inputs.fields)
+    canonical_projection = dict(project_safe_document_inputs(inputs).fields)
     for name, safe_value in projected.items():
-        expected = _safe_input_projection(name, inputs)
+        expected_value = canonical_projection[name]
+        if isinstance(expected_value, SafeString):
+            expected: object = {
+                "length": expected_value.length,
+                "sha256": expected_value.sha256,
+            }
+        elif isinstance(expected_value, SafeTextProbeSnapshot):
+            expected = {
+                "character_count": expected_value.character_count,
+                "limit": expected_value.limit,
+                "sha256": expected_value.sha256,
+                "truncated": expected_value.truncated,
+            }
+        else:
+            expected = expected_value
         if isinstance(safe_value, SafeString):
             actual: object = {
                 "length": safe_value.length,

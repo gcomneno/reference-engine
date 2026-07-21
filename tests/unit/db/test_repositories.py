@@ -14,6 +14,7 @@ from reference_engine.db import (
     Artifact,
     apply_migrations,
     connect_database,
+    get_active_document_model_versions,
     get_artifact,
     get_artifact_by_content,
     get_artifact_by_storage,
@@ -454,16 +455,12 @@ def test_model_version_post_insert_unique_conflict_is_resolved(
     monkeypatch.setattr(model_repository, "_resolve_model_version_identity", race)
     if conflicting:
         with pytest.raises(DocumentModelRepositoryError) as caught:
-            register_document_model_version(
-                primary, requested, artifact_id=artifact_id
-            )
+            register_document_model_version(primary, requested, artifact_id=artifact_id)
         assert caught.value.code == "MODEL_VERSION_CONFLICT"
         details = caught.value.details
         assert details is not None
         assert details["existing_definition_hash"] == "b" * 64
-        assert (
-            details["requested_definition_hash"] == requested.definition_sha256
-        )
+        assert details["requested_definition_hash"] == requested.definition_sha256
     else:
         result = register_document_model_version(
             primary, requested, artifact_id=artifact_id
@@ -474,12 +471,13 @@ def test_model_version_post_insert_unique_conflict_is_resolved(
         )
 
     assert primary.in_transaction is False
-    assert primary.execute(
-        "SELECT COUNT(*) FROM document_model_versions"
-    ).fetchone()[0] == 1
-    assert primary.execute(
-        "SELECT COUNT(*) FROM model_query_definitions"
-    ).fetchone()[0] == len(cast(list[object], requested.normalized_data["queries"]))
+    assert (
+        primary.execute("SELECT COUNT(*) FROM document_model_versions").fetchone()[0]
+        == 1
+    )
+    assert primary.execute("SELECT COUNT(*) FROM model_query_definitions").fetchone()[
+        0
+    ] == len(cast(list[object], requested.normalized_data["queries"]))
 
 
 def test_version_artifact_unique_failure_is_not_mislabeled(
@@ -494,6 +492,35 @@ def test_version_artifact_unique_failure_is_not_mislabeled(
         register_document_model_version(database, requested, artifact_id=artifact_id)
 
     assert get_document_model(database, "sample.other") is None
+
+
+def test_active_model_versions_filter_and_use_lexical_order(
+    database: sqlite3.Connection,
+) -> None:
+    source = loaded()
+    for index, (key, version, status) in enumerate(
+        (
+            ("model.z", "1.0.0", "active"),
+            ("model.a", "3.0.0", "disabled"),
+            ("model.a", "10.0.0", "active"),
+            ("model.a", "2.0.0", "active"),
+            ("model.q", "1.0.0", "deprecated"),
+        ),
+        1,
+    ):
+        item = changed_loaded(source, id=key, version=version, status=status)
+        register_document_model_version(
+            database, item, artifact_id=version_artifact(database, str(index))
+        )
+    database.commit()
+    active = get_active_document_model_versions(database)
+    assert [(item.model_key, item.semantic_version) for item in active] == [
+        ("model.a", "10.0.0"),
+        ("model.a", "2.0.0"),
+        ("model.z", "1.0.0"),
+    ]
+    database.execute("UPDATE document_model_versions SET status = 'disabled'")
+    assert get_active_document_model_versions(database) == ()
 
 
 @pytest.mark.parametrize("preexisting_identity", [False, True])

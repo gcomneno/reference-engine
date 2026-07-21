@@ -223,6 +223,23 @@ def get_document_model_version(
     return None if row is None else _version(connection, row)
 
 
+def get_active_document_model_versions(
+    connection: sqlite3.Connection,
+) -> tuple[DocumentModelVersion, ...]:
+    """Return the active recognition candidates in recognition-v1 order."""
+
+    rows = connection.execute(
+        """SELECT v.id, v.document_model_id, m.model_key, v.semantic_version,
+                  v.schema_version, v.status, v.engine_compatibility, v.artifact_id,
+                  v.definition_json, v.definition_sha256, v.loaded_at
+           FROM document_model_versions AS v
+           JOIN document_models AS m ON m.id = v.document_model_id
+           WHERE v.status = 'active'
+           ORDER BY m.model_key, v.semantic_version, v.id"""
+    )
+    return tuple(_version(connection, row) for row in rows)
+
+
 def _resolve_model_version_identity(
     connection: sqlite3.Connection,
     model_key: str,
