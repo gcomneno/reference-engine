@@ -52,5 +52,9 @@ class RecognitionRepositoryError(RepositoryError):
     """A completed recognition run could not be persisted consistently."""
 
 
+class RecognitionOrchestrationError(ReferenceEngineError):
+    """A recognition invocation could not be started safely."""
+
+
 class DocumentRegistrationError(ReferenceEngineError):
     """A source document could not be registered."""

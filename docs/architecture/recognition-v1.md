@@ -9,6 +9,28 @@ registered document against document-model versions. The key words **MUST**,
 Recognition only proposes a model version. It MUST NOT extract data, create a
 dataset, or write `document_bindings`.
 
+## Public orchestration boundary
+
+`reference_engine.recognition.recognize_document()` is the domain-neutral public
+application operation for recognizing one registered document. The caller supplies a
+managed SQLite connection, the durable document ID, engine version, an explicit closed
+capability snapshot, an optional bounded typed text-probe acquisition, and optionally a
+timezone-aware clock. Filename, URL, MIME type, size, hash, registration time, and other
+technical metadata are resolved from the registered `Document` and source `Artifact`.
+
+When it owns the transaction, the service begins an immediate transaction before the
+first lookup so the document, artifact, active model versions, and exact definition
+bytes form one coherent view. It evaluates only the resulting immutable in-memory
+snapshot, persists the complete append-only run through the recognition repository,
+and commits after persistence succeeds. An existing caller transaction remains owned
+by the caller and repository persistence uses its existing savepoint behavior.
+
+The text probe is never accepted as an unbounded string: it is supplied only through
+the recognition-v1 acquisition contract and must agree with the declared capability
+limit and producer. Durable snapshots retain only safe scalar values and digests and
+lengths for filename, URL, and probe text. Recognition performs no discovery or
+extraction and never creates or changes a document binding.
+
 ## Invocation and immutable run snapshot
 
 One explicit invocation MUST create one new append-only recognition run.
