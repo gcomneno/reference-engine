@@ -18,7 +18,7 @@ from reference_engine.recognition.decimals import (
     compare_scores,
     display_score,
 )
-from reference_engine.recognition.rules import evaluate_rule
+from reference_engine.recognition.rules import evaluate_rule, safe_evidence_object
 from reference_engine.recognition.scoring import score_equal, score_rules
 from reference_engine.recognition.types import (
     ActiveCandidateSnapshot,
@@ -31,7 +31,6 @@ from reference_engine.recognition.types import (
     RuleEvaluationStatus,
     RuleEvidence,
     RunOutcome,
-    SafeEvidenceValue,
     SafeString,
     SafeTextProbeSnapshot,
     TechnicalDocumentInputs,
@@ -109,18 +108,6 @@ def serialize_run_snapshot(snapshot: RecognitionRunSnapshot) -> tuple[str, str]:
     return encoded.decode("utf-8"), bytes_sha256(encoded)
 
 
-def _safe_value(value: SafeEvidenceValue | None) -> object:
-    if value is None:
-        return None
-    if value.sha256 is not None:
-        return {
-            "kind": value.kind,
-            "length": value.length,
-            "sha256": validate_sha256(value.sha256, f"{value.kind}.sha256"),
-        }
-    return {"kind": value.kind, "value": value.value}
-
-
 def _rule_object(
     rule: RuleEvidence, denominator: Decimal, *, scoreable: bool
 ) -> dict[str, object]:
@@ -133,9 +120,9 @@ def _rule_object(
             ExactScore(rule.weight if rule.passed else Decimal(0), denominator)
         )
     return {
-        "actual": _safe_value(rule.actual),
+        "actual": safe_evidence_object(rule.actual),
         "code": rule.code,
-        "expected": _safe_value(rule.expected),
+        "expected": safe_evidence_object(rule.expected),
         "id": rule.id,
         "passed": rule.passed,
         "required": rule.required,

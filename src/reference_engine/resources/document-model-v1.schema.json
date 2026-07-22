@@ -25,6 +25,9 @@
     "recognition": {
       "$ref": "#/$defs/recognition"
     },
+    "binding": {
+      "$ref": "#/$defs/bindingPolicy"
+    },
     "extraction": {
       "$ref": "#/$defs/extraction"
     },
@@ -423,6 +426,20 @@
             "$ref": "#/$defs/recognitionRule"
           }
         }
+      }
+    },
+    "bindingPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allow_automatic",
+        "allow_manual",
+        "allow_explicit_cli"
+      ],
+      "properties": {
+        "allow_automatic": { "type": "boolean" },
+        "allow_manual": { "type": "boolean" },
+        "allow_explicit_cli": { "type": "boolean" }
       }
     },
     "safeOptions": {
@@ -946,11 +963,36 @@
             "default": {
               "$ref": "#/$defs/scalarValue"
             },
+            "constant": {
+              "$ref": "#/$defs/scalarValue"
+            },
             "description": {
               "type": "string",
               "minLength": 1
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": { "not": { "properties": { "nullable": { "const": true } }, "required": ["nullable"] } },
+              "then": { "properties": { "default": { "not": { "type": "null" } }, "constant": { "not": { "type": "null" } } } }
+            },
+            {
+              "if": { "properties": { "type": { "const": "integer" } } },
+              "then": { "properties": { "default": { "type": ["integer", "null"] }, "constant": { "type": ["integer", "null"] } } }
+            },
+            {
+              "if": { "properties": { "type": { "const": "boolean" } } },
+              "then": { "properties": { "default": { "type": ["boolean", "null"] }, "constant": { "type": ["boolean", "null"] } } }
+            },
+            {
+              "if": { "properties": { "type": { "enum": ["string", "date", "datetime"] } } },
+              "then": { "properties": { "default": { "type": ["string", "null"] }, "constant": { "type": ["string", "null"] } } }
+            },
+            {
+              "if": { "properties": { "type": { "const": "decimal" } } },
+              "then": { "properties": { "default": { "type": ["string", "integer", "null"] }, "constant": { "type": ["string", "integer", "null"] } } }
+            }
+          ]
         },
         {
           "type": "object",
@@ -981,11 +1023,20 @@
             "default": {
               "$ref": "#/$defs/scalarValue"
             },
+            "constant": {
+              "$ref": "#/$defs/scalarValue"
+            },
             "description": {
               "type": "string",
               "minLength": 1
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": { "not": { "properties": { "nullable": { "const": true } }, "required": ["nullable"] } },
+              "then": { "properties": { "default": { "not": { "type": "null" } }, "constant": { "not": { "type": "null" } } } }
+            }
+          ]
         }
       ]
     },

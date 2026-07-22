@@ -102,6 +102,79 @@ def test_closed_top_level_rejects_unknown_properties() -> None:
     assert_error_at(data, ())
 
 
+def test_binding_policy_is_closed_and_explicit() -> None:
+    data = load_fixture("valid-minimal.yaml")
+    data["binding"] = {
+        "allow_automatic": False,
+        "allow_manual": True,
+        "allow_explicit_cli": True,
+    }
+    assert validation_errors(data) == []
+    del data["binding"]["allow_automatic"]
+    assert_error_at(data, ("binding",))
+
+
+def test_metadata_constant_is_declared_data_not_code() -> None:
+    data = load_fixture("valid-minimal.yaml")
+    data["document_metadata"] = {
+        "fields": {
+            "authority": {
+                "type": "string",
+                "required": True,
+                "constant": "Synthetic Authority",
+            }
+        }
+    }
+    assert validation_errors(data) == []
+
+
+@pytest.mark.parametrize(
+    ("field_type", "value"),
+    [("integer", True), ("boolean", 1), ("string", 1), ("decimal", 1.5)],
+)
+def test_metadata_scalar_declaration_rejects_wrong_non_null_type(
+    field_type: str, value: object
+) -> None:
+    data = load_fixture("valid-minimal.yaml")
+    data["document_metadata"] = {
+        "fields": {
+            "choice": {
+                "type": field_type,
+                "required": False,
+                "default": value,
+            }
+        }
+    }
+    assert_error_at(data, ("document_metadata", "fields", "choice"))
+
+
+def test_non_nullable_metadata_declaration_rejects_null_default() -> None:
+    data = load_fixture("valid-minimal.yaml")
+    data["document_metadata"] = {
+        "fields": {"choice": {"type": "string", "required": False, "default": None}}
+    }
+    assert_error_at(data, ("document_metadata", "fields", "choice"))
+
+
+@pytest.mark.parametrize(
+    ("field_type", "value"),
+    [
+        ("date", "not-a-date"),
+        ("datetime", "tomorrow"),
+        ("decimal", "NaN"),
+        ("decimal", "Infinity"),
+    ],
+)
+def test_schema_leaves_lexical_metadata_checks_to_semantic_validation(
+    field_type: str, value: str
+) -> None:
+    data = load_fixture("valid-minimal.yaml")
+    data["document_metadata"] = {
+        "fields": {"choice": {"type": field_type, "required": False, "default": value}}
+    }
+    assert validation_errors(data) == []
+
+
 @pytest.mark.parametrize("forbidden_property", ["sql", "python", "shell", "command"])
 def test_query_rejects_executable_properties(
     forbidden_property: str,

@@ -219,6 +219,108 @@ def test_documented_context_reference_is_accepted() -> None:
     validate_document_model(data)
 
 
+def test_metadata_field_cannot_be_constant_and_default() -> None:
+    data = fixture_data("valid-complete.yaml")
+    field = cast(dict[str, Any], data["document_metadata"])["fields"]["publisher"]
+    field["constant"] = "Synthetic Authority"
+    with pytest.raises(DocumentModelError) as caught:
+        validate_document_model(data)
+    assert caught.value.code == "MODEL_SEMANTIC_INVALID"
+    assert caught.value.data_path == "/document_metadata/fields/publisher"
+
+
+@pytest.mark.parametrize(
+    ("declaration", "value_name"),
+    [
+        ({"type": "integer", "required": True, "default": True}, "default"),
+        ({"type": "boolean", "required": True, "constant": 1}, "constant"),
+        ({"type": "string", "required": True, "constant": None}, "constant"),
+        (
+            {
+                "type": "enum",
+                "required": True,
+                "values": [1],
+                "default": True,
+            },
+            "default",
+        ),
+    ],
+)
+def test_metadata_default_and_constant_must_match_declaration(
+    declaration: dict[str, object], value_name: str
+) -> None:
+    data = fixture_data()
+    data["document_metadata"] = {"fields": {"choice": declaration}}
+    with pytest.raises(DocumentModelError) as caught:
+        validate_document_model(data)
+    assert caught.value.data_path in {
+        "/document_metadata/fields/choice",
+        f"/document_metadata/fields/choice/{value_name}",
+    }
+
+
+def test_nullable_exact_typed_metadata_default_is_valid() -> None:
+    data = fixture_data()
+    data["document_metadata"] = {
+        "fields": {
+            "choice": {
+                "type": "enum",
+                "required": False,
+                "nullable": True,
+                "values": [1, True],
+                "default": None,
+            }
+        }
+    }
+    validate_document_model(data)
+
+
+@pytest.mark.parametrize(
+    ("field_type", "value"),
+    [
+        ("date", "2024-02-29"),
+        ("datetime", "2026-12-31T23:59:59.999999Z"),
+        ("decimal", "0"),
+        ("decimal", "-123.45"),
+    ],
+)
+def test_canonical_metadata_declaration_scalars_are_valid(
+    field_type: str, value: object
+) -> None:
+    data = fixture_data()
+    data["document_metadata"] = {
+        "fields": {"value": {"type": field_type, "required": False, "default": value}}
+    }
+    validate_document_model(data)
+
+
+@pytest.mark.parametrize(
+    ("field_type", "value"),
+    [
+        ("date", "not-a-date"),
+        ("date", "2023-02-29"),
+        ("datetime", "tomorrow"),
+        ("datetime", "2026-01-01T00:00:00Z"),
+        ("datetime", "2026-01-01T01:00:00.000000+01:00"),
+        ("decimal", "NaN"),
+        ("decimal", "Infinity"),
+        ("decimal", "-Infinity"),
+        ("decimal", "1.2300"),
+    ],
+)
+def test_noncanonical_or_invalid_metadata_declaration_scalars_are_rejected(
+    field_type: str, value: object
+) -> None:
+    data = fixture_data()
+    data["document_metadata"] = {
+        "fields": {"value": {"type": field_type, "required": False, "constant": value}}
+    }
+    with pytest.raises(DocumentModelError) as caught:
+        validate_document_model(data)
+    assert caught.value.code == "MODEL_SEMANTIC_INVALID"
+    assert caught.value.data_path == "/document_metadata/fields/value/constant"
+
+
 def test_undeclared_context_reference_is_rejected() -> None:
     data = fixture_data()
     query = cast(dict[str, Any], data["queries"][0])

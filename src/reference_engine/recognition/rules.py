@@ -435,6 +435,124 @@ def evaluate_rule(
     )
 
 
+def evaluate_snapshot_rule(
+    rule: RuleDefinition,
+    snapshot_value: object,
+    input_value: object,
+) -> RuleEvidence:
+    """Re-evaluate a rule from an input proven against its canonical snapshot."""
+
+    if rule.invalid_code or rule.type is None:
+        raise ValueError("invalid rule cannot be authorized")
+    semantic_preimage = rule.type in {
+        RuleType.FILENAME_REGEX,
+        RuleType.TEXT_CONTAINS,
+        RuleType.TEXT_REGEX,
+    }
+    kind, value = _authorization_value(rule, input_value)
+    if semantic_preimage and not isinstance(value, str):
+        raise ValueError("invalid sensitive authorization input")
+    hashed_equality = (
+        rule.type is RuleType.METADATA_EQUALS
+        and kind in {"original_filename", "source_url"}
+        and isinstance(snapshot_value, Mapping)
+    )
+    sensitive = semantic_preimage or kind in {"original_filename", "source_url"}
+    if hashed_equality:
+        assert isinstance(snapshot_value, Mapping)
+        actual = SafeEvidenceValue(
+            kind,
+            sha256=cast(str, snapshot_value.get("sha256")),
+            length=cast(int, snapshot_value.get("length")),
+        )
+    else:
+        actual = _safe(kind, value, sensitive=sensitive)
+    snapshot_evidence = _snapshot_evidence(rule, snapshot_value)
+    if safe_evidence_object(actual) != snapshot_evidence:
+        raise ValueError("authorization input does not match snapshot")
+    if hashed_equality:
+        passed = snapshot_evidence == safe_evidence_object(expected_rule_evidence(rule))
+    else:
+        passed = _matches(rule, value)
+    return RuleEvidence(
+        rule.id,
+        rule.type.value,
+        rule.required,
+        rule.weight,
+        RuleEvaluationStatus.EVALUATED_PASS
+        if passed
+        else RuleEvaluationStatus.EVALUATED_FAIL,
+        passed,
+        expected_rule_evidence(rule),
+        actual,
+    )
+
+
+def expected_rule_evidence(rule: RuleDefinition) -> SafeEvidenceValue:
+    """Return the canonical privacy-safe projection of a rule expectation."""
+
+    return _expected(rule)
+
+
+def safe_evidence_object(value: SafeEvidenceValue | None) -> object:
+    """Serialize a safe evidence value exactly as recognition persists it."""
+
+    if value is None:
+        return None
+    if value.sha256 is not None:
+        return {
+            "kind": value.kind,
+            "length": value.length,
+            "sha256": validate_sha256(value.sha256, f"{value.kind}.sha256"),
+        }
+    return {"kind": value.kind, "value": value.value}
+
+
+def _authorization_value(rule: RuleDefinition, value: object) -> tuple[str, object]:
+    assert rule.type is not None
+    if rule.type is RuleType.MIME_TYPE:
+        return (
+            "mime_type",
+            _normalize_mime(value) if isinstance(value, str) else value,
+        )
+    if rule.type is RuleType.PAGE_COUNT_BETWEEN:
+        return "page_count", value
+    if rule.type is RuleType.SHA256:
+        return "sha256", value.lower() if isinstance(value, str) else value
+    if rule.type is RuleType.FILENAME_REGEX:
+        return (
+            "original_filename",
+            re.split(r"[/\\]", value)[-1] if isinstance(value, str) else value,
+        )
+    if rule.type in {RuleType.TEXT_CONTAINS, RuleType.TEXT_REGEX}:
+        return "recognition_text_probe", value
+    assert isinstance(rule.value, MetadataExpectation)
+    kind = rule.value.field
+    if kind == "mime_type" and isinstance(value, str):
+        value = _normalize_mime(value)
+    return kind, value
+
+
+def _snapshot_evidence(rule: RuleDefinition, value: object) -> object:
+    assert rule.type is not None
+    if rule.type is RuleType.TEXT_CONTAINS or rule.type is RuleType.TEXT_REGEX:
+        if not isinstance(value, Mapping):
+            raise ValueError("invalid text snapshot")
+        return {
+            "kind": "recognition_text_probe",
+            "length": value.get("character_count"),
+            "sha256": value.get("sha256"),
+        }
+    kind, normalized = _authorization_value(rule, value)
+    if kind in {"original_filename", "source_url"} and isinstance(value, Mapping):
+        return {
+            "kind": kind,
+            "length": value.get("length"),
+            "sha256": value.get("sha256"),
+        }
+    return safe_evidence_object(_safe(kind, normalized))
+
+
 def _source(
     rule: RuleDefinition, inputs: TechnicalDocumentInputs
 ) -> tuple[InputValue | None, str, bool, str | None]:

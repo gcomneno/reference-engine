@@ -26,6 +26,7 @@ Required sections:
 
 Optional sections:
 
+- `binding`
 - `document_metadata`
 - `temporal`
 - `indexes`
@@ -126,6 +127,21 @@ evidence, and outcome semantics are defined by the normative
 [Recognition contract v1](recognition-v1.md). Recognition proposes a model; it
 does not create a binding.
 
+## Binding policy
+
+Models may declare a closed binding policy. Absence denies every method. When
+present, every permission is explicit:
+
+```yaml
+binding:
+  allow_automatic: false
+  allow_manual: true
+  allow_explicit_cli: true
+```
+
+This policy is combined with an independent typed caller/system policy. Both must
+permit the selected method under the normative [Binding contract v1](binding-v1.md).
+
 ## Document metadata
 
 Metadata may be constant, extracted, or supplied explicitly:
@@ -136,17 +152,27 @@ document_metadata:
     authority:
       type: string
       required: true
-      default: ASCIT
+      constant: Synthetic Authority
     year:
       type: integer
       required: true
-      extraction:
-        source: text_regex
-        pattern: "\\b(20\\d{2})\\b"
-        group: 1
+    edition:
+      type: string
+      required: false
+      default: standard
 ```
 
 The engine also records technical metadata independent of the model, including original filename, MIME type, SHA-256, relative vault path, source URL, acquisition time, page count, and registration time.
+
+Constants are protected. Other fields use user-supplied, then caller-supplied
+extracted, then default precedence. Binding performs no extraction. The binding
+contract defines normalization, canonical hashing, required fields, and rejection
+of undeclared keys.
+
+JSON Schema enforces metadata scalar JSON types. Semantic model validation enforces
+the canonical lexical and value rules that JSON Schema cannot express exactly:
+calendar-valid ISO dates, UTC datetimes with six fractional digits, and finite
+canonical decimals.
 
 ## Extraction
 

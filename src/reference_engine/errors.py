@@ -58,3 +58,7 @@ class RecognitionOrchestrationError(ReferenceEngineError):
 
 class DocumentRegistrationError(ReferenceEngineError):
     """A source document could not be registered."""
+
+
+class DocumentBindingError(ReferenceEngineError):
+    """A document binding request violates the binding contract."""

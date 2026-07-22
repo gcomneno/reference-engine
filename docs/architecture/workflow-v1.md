@@ -124,6 +124,9 @@ Binding metadata combines declared constants, extracted values, and user-supplie
 
 Bindings are immutable. A replacement binding points to the previous binding as superseded history.
 
+The exact authorization, policy, metadata, supersession, canonicalization, and
+error rules are defined normatively in the [Binding contract v1](binding-v1.md).
+
 ## 5. Extraction
 
 Inputs:
