@@ -8,7 +8,10 @@ import pytest
 
 from reference_engine.recognition.rules import (
     evaluate_rule,
+    evaluate_snapshot_rule,
+    expected_rule_evidence,
     parse_recognition_definition,
+    safe_evidence_object,
 )
 from reference_engine.recognition.types import (
     Availability,
@@ -82,6 +85,116 @@ def test_every_rule_type_passes_and_can_fail(rule_type: str, value: object) -> N
         evaluate_rule(rule, _inputs(), caps).status
         is RuleEvaluationStatus.EVALUATED_PASS
     )
+
+
+@pytest.mark.parametrize(
+    ("rule_type", "declared", "snapshot_value", "input_value", "passed"),
+    [
+        ("mime_type", "application/pdf", "text/plain", "text/plain", False),
+        ("page_count_between", {"minimum": 2, "maximum": 4}, 5, 5, False),
+        ("sha256", "a" * 64, "b" * 64, "b" * 64, False),
+        (
+            "metadata_equals",
+            {"field": "source_url", "expected": None},
+            None,
+            None,
+            True,
+        ),
+        (
+            "metadata_equals",
+            {"field": "original_filename", "expected": "private-report.pdf"},
+            {
+                "length": 18,
+                "sha256": hashlib.sha256(b"private-report.pdf").hexdigest(),
+            },
+            {
+                "length": 18,
+                "sha256": hashlib.sha256(b"private-report.pdf").hexdigest(),
+            },
+            True,
+        ),
+    ],
+)
+def test_snapshot_rule_evaluator_reuses_recognition_semantics(
+    rule_type: str,
+    declared: object,
+    snapshot_value: object,
+    input_value: object,
+    passed: bool,
+) -> None:
+    rule = parse_recognition_definition(
+        _definition(
+            {
+                "id": "snapshot",
+                "type": rule_type,
+                "value": declared,
+                "required": True,
+                "weight": 1,
+            }
+        )
+    ).rules[0]
+    evidence = evaluate_snapshot_rule(rule, snapshot_value, input_value)
+    assert evidence.passed is passed
+    assert evidence.expected == expected_rule_evidence(rule)
+    assert safe_evidence_object(evidence.actual) is not None
+
+
+@pytest.mark.parametrize(
+    ("rule_type", "value"),
+    [
+        ("filename_regex", r"report\.pdf$"),
+        ("text_contains", "marker"),
+        ("text_regex", r"(?i)secret"),
+    ],
+)
+def test_sensitive_snapshot_rules_verify_preimage_and_recompute(
+    rule_type: str, value: str
+) -> None:
+    rule = parse_recognition_definition(
+        _definition(
+            {
+                "id": "sensitive",
+                "type": rule_type,
+                "value": value,
+                "required": True,
+                "weight": 1,
+            }
+        )
+    ).rules[0]
+    input_value = {
+        "filename_regex": "private-report.pdf",
+        "text_contains": "Secret marker heading",
+        "text_regex": "Secret marker heading",
+    }[rule_type]
+    evaluated = evaluate_rule(
+        rule,
+        _inputs(),
+        (
+            CapabilitySnapshot("document_metadata.v1", "1", Availability.AVAILABLE),
+            CapabilitySnapshot(
+                "recognition_text_probe.v1", "1", Availability.AVAILABLE
+            ),
+        ),
+    )
+    assert evaluated.actual is not None
+    snapshot = (
+        {
+            "character_count": evaluated.actual.length,
+            "sha256": evaluated.actual.sha256,
+        }
+        if rule_type != "filename_regex"
+        else {"length": evaluated.actual.length, "sha256": evaluated.actual.sha256}
+    )
+    recomputed = evaluate_snapshot_rule(rule, snapshot, input_value)
+    assert recomputed.status is RuleEvaluationStatus.EVALUATED_PASS
+    with pytest.raises(ValueError):
+        evaluate_snapshot_rule(rule, snapshot, "fabricated input")
+    projection = safe_evidence_object(expected_rule_evidence(rule))
+    assert isinstance(projection, dict) and set(projection) == {
+        "kind",
+        "length",
+        "sha256",
+    }
 
 
 def test_capability_and_input_unavailability_are_distinct() -> None:

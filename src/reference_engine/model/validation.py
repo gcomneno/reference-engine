@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
 
 from reference_engine.errors import DocumentModelError
+from reference_engine.metadata_scalars import is_canonical_metadata_scalar
 
 
 @lru_cache(maxsize=1)
@@ -63,12 +64,52 @@ def _sequence(value: object) -> Sequence[object] | None:
 
 
 def _semantic_error(message: str, path: str, **details: object) -> DocumentModelError:
-    return DocumentModelError(
-        "MODEL_SEMANTIC_INVALID", message, path, details or None
-    )
+    return DocumentModelError("MODEL_SEMANTIC_INVALID", message, path, details or None)
 
 
 def _validate_semantics(data: Mapping[str, object]) -> None:
+    document_metadata = _mapping(data.get("document_metadata"))
+    if document_metadata is not None:
+        metadata_fields = _mapping(document_metadata.get("fields"))
+        assert metadata_fields is not None
+        for metadata_name, field_value in metadata_fields.items():
+            assert isinstance(metadata_name, str)
+            metadata_field = _mapping(field_value)
+            assert metadata_field is not None
+            if "default" in metadata_field and "constant" in metadata_field:
+                raise _semantic_error(
+                    "A metadata field cannot declare both default and constant.",
+                    f"/document_metadata/fields/{_escape_pointer(metadata_name)}",
+                )
+            for value_name in ("default", "constant"):
+                if value_name not in metadata_field:
+                    continue
+                value = metadata_field[value_name]
+                nullable = metadata_field.get("nullable", False) is True
+                field_type = metadata_field.get("type")
+                valid = value is None and nullable
+                if value is not None:
+                    if field_type in {
+                        "string",
+                        "date",
+                        "datetime",
+                        "decimal",
+                        "integer",
+                        "boolean",
+                    }:
+                        valid = is_canonical_metadata_scalar(field_type, value)
+                    elif field_type == "enum":
+                        values = metadata_field.get("values")
+                        valid = isinstance(values, Sequence) and any(
+                            type(value) is type(member) and value == member
+                            for member in values
+                        )
+                if not valid:
+                    raise _semantic_error(
+                        "A metadata default or constant must match its field type.",
+                        f"/document_metadata/fields/{_escape_pointer(metadata_name)}/{value_name}",
+                    )
+
     records = _mapping(data.get("records"))
     assert records is not None
     fields = _mapping(records.get("fields"))
@@ -224,3 +265,7 @@ def validate_document_model(data: Mapping[str, object]) -> None:
             },
         )
     _validate_semantics(data)
+
+
+def _escape_pointer(part: str) -> str:
+    return part.replace("~", "~0").replace("/", "~1")
